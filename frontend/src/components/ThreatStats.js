@@ -1,11 +1,15 @@
 import React from "react";
+import { motion } from "framer-motion";
 import { Clock, DollarSign, Users, AlertOctagon } from "lucide-react";
+import CountUp from "./CountUp";
 
 const stats = [
   {
     id: "seconds",
     kicker: "SOURCE AUDIO REQUIRED",
     value: "3",
+    numeric: 3,
+    suffix: "",
     unit: "Seconds",
     icon: Clock,
     tone: "cyan",
@@ -16,6 +20,9 @@ const stats = [
     id: "loss",
     kicker: "PROJECTED BY 2027",
     value: "$40B",
+    numeric: 40,
+    prefix: "$",
+    suffix: "B",
     unit: "Annual fraud losses",
     icon: DollarSign,
     tone: "green",
@@ -26,6 +33,7 @@ const stats = [
     id: "targets",
     kicker: "PERSONAL EXPERIENCE",
     value: "1 in 4",
+    literal: "1 in 4",
     unit: "Adults targeted",
     icon: Users,
     tone: "cyan",
@@ -36,6 +44,8 @@ const stats = [
     id: "success",
     kicker: "URGENCY HOOK SUCCESS",
     value: "77%",
+    numeric: 77,
+    suffix: "%",
     unit: "Financial loss rate",
     icon: AlertOctagon,
     tone: "danger",
@@ -66,9 +76,14 @@ function StatCard({ s, big }) {
   const t = toneMap[s.tone];
   const Icon = s.icon;
   return (
-    <article
+    <motion.article
       data-testid={`threat-stat-${s.id}`}
-      className={`reveal relative group glass rounded-2xl p-6 sm:p-8 border border-white/5 ${t.border} transition-colors ${s.span} overflow-hidden`}
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
+      whileHover={{ y: -4 }}
+      className={`relative group glass rounded-2xl p-6 sm:p-8 border border-white/5 ${t.border} transition-colors ${s.span} overflow-hidden`}
     >
       <div
         className="absolute -top-16 -right-16 w-52 h-52 blur-3xl opacity-30 group-hover:opacity-60 transition-opacity"
@@ -86,7 +101,16 @@ function StatCard({ s, big }) {
             }`}
             style={{ textShadow: `0 0 40px ${t.glow}` }}
           >
-            {s.value}
+            {s.literal ? (
+              s.literal
+            ) : (
+              <CountUp
+                value={s.numeric}
+                prefix={s.prefix || ""}
+                suffix={s.suffix || ""}
+                duration={2}
+              />
+            )}
           </div>
           <div className={`mt-1 font-display text-lg sm:text-xl text-white/85`}>{s.unit}</div>
         </div>
@@ -98,7 +122,7 @@ function StatCard({ s, big }) {
         <span className="absolute top-0 left-0 w-3 h-3 border-l border-t border-white/20" />
         <span className="absolute bottom-0 right-0 w-3 h-3 border-r border-b border-white/20" />
       </div>
-    </article>
+    </motion.article>
   );
 }
 

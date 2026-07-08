@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Sparkles, Zap, Users } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -33,10 +34,16 @@ function RankBadge({ rank }) {
   );
 }
 
-function Row({ entry, isMe }) {
+function Row({ entry, isMe, index }) {
   return (
-    <div
+    <motion.div
       data-testid={`leaderboard-row-${entry.rank}`}
+      layout
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 12 }}
+      transition={{ duration: 0.35, delay: index * 0.04, ease: [0.2, 0.8, 0.2, 1] }}
+      whileHover={{ y: -2 }}
       className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-colors border ${
         isMe
           ? "bg-phasor-green/[0.06] border-phasor-green/30"
@@ -64,7 +71,7 @@ function Row({ entry, isMe }) {
           referrals
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -181,9 +188,11 @@ export default function Leaderboard() {
             {!loading && entries.length === 0 && <EmptyState />}
             {entries.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {entries.map((e) => (
-                  <Row key={`${e.rank}-${e.handle}`} entry={e} />
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {entries.map((e, i) => (
+                    <Row key={`${e.rank}-${e.handle}`} entry={e} index={i} />
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </div>

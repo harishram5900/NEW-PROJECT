@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Phone, Video, Chrome, Mail } from "lucide-react";
 import PhoneMock from "./mocks/PhoneMock";
 import ZoomMock from "./mocks/ZoomMock";
@@ -66,10 +67,12 @@ export default function ChannelShowcase() {
             const Icon = c.icon;
             const isActive = c.id === active;
             return (
-              <button
+              <motion.button
                 key={c.id}
                 data-testid={`channel-tab-${c.id}`}
                 onClick={() => setActive(c.id)}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.97 }}
                 className={`group flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm border transition-colors ${
                   isActive
                     ? "bg-phasor-green text-black border-phasor-green"
@@ -78,7 +81,7 @@ export default function ChannelShowcase() {
               >
                 <Icon className="w-4 h-4" strokeWidth={2} />
                 <span className="font-medium">{c.label}</span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -121,7 +124,17 @@ export default function ChannelShowcase() {
             <div className="absolute inset-0 grid-bg opacity-40" />
             <div className="absolute -top-24 -right-24 w-[420px] h-[420px] radial-glow-green blur-3xl opacity-50" />
             <div className="relative w-full">
-              <Mock />
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={current.id}
+                  initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -16, scale: 0.98 }}
+                  transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+                >
+                  <Mock />
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
         </div>

@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, CheckCircle2, Copy, Share2, Sparkles, Twitter, Mail as MailIcon, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Copy, Share2, Sparkles, Twitter, Mail as MailIcon, Send, Trophy } from "lucide-react";
 import WaveformCanvas from "./WaveformCanvas";
+import CountUp from "./CountUp";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+function maskEmail(email) {
+  try {
+    const [local, domain] = email.split("@");
+    const lo = local.slice(0, 2);
+    const [dname, ...rest] = domain.split(".");
+    const tld = rest.length ? `.${rest[rest.length - 1]}` : "";
+    return `${lo}•••@${dname[0]}•••${tld}`;
+  } catch { return "•••"; }
+}
 
 function ProgressDots({ count = 0 }) {
   return (
@@ -26,6 +38,32 @@ function ProgressDots({ count = 0 }) {
 
 function SharePanel({ data, shareUrl, onReset }) {
   const [copied, setCopied] = useState("");
+  const [boardRank, setBoardRank] = useState(null); // { rank, totalOnBoard }
+
+  // Look up if this user is on the public leaderboard (top 10)
+  useEffect(() => {
+    let ignore = false;
+    const check = async () => {
+      try {
+        const res = await axios.get(`${API}/waitlist/leaderboard`, { params: { window: "all", limit: 10 } });
+        if (ignore) return;
+        const entries = res.data?.entries || [];
+        // The leaderboard exposes masked handles, so match by referrals+beta as a heuristic OR reuse mask
+        // We'll match by first-2 chars of email prefix + first char of domain (which is exactly the mask)
+        const mask = maskEmail(data.email);
+        const idx = entries.findIndex((e) => e.handle === mask && e.referrals === data.referral_count);
+        if (idx >= 0) {
+          setBoardRank({ rank: idx + 1, totalOnBoard: entries.length });
+        } else {
+          setBoardRank(null);
+        }
+      } catch {
+        // silent
+      }
+    };
+    check();
+    return () => { ignore = true; };
+  }, [data.email, data.referral_count]);
 
   const copy = async (val, key) => {
     const done = () => {
@@ -153,6 +191,37 @@ function SharePanel({ data, shareUrl, onReset }) {
         </div>
       </div>
 
+      {/* Leaderboard pill */}
+      <AnimatePresence>
+        {boardRank && (
+          <motion.a
+            data-testid="leaderboard-pill"
+            href="#leaderboard"
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ type: "spring", stiffness: 220, damping: 22 }}
+            className="relative mt-4 flex items-center justify-between gap-3 rounded-xl border border-yellow-400/40 bg-gradient-to-r from-yellow-400/[0.08] to-transparent px-4 py-3 hover:border-yellow-300/60 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-full bg-yellow-400 text-black font-display font-bold flex items-center justify-center"
+                style={{ boxShadow: "0 0 20px rgba(250,204,21,0.5)" }}
+              >
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-display text-sm font-semibold text-white">
+                  You're #{boardRank.rank} on the public leaderboard
+                </div>
+                <div className="text-[11px] text-phasor-mute font-mono">Tap to view · updates live</div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-yellow-300 group-hover:translate-x-0.5 transition-transform" />
+          </motion.a>
+        )}
+      </AnimatePresence>
+
       {/* Share link */}
       <div className="relative mt-5">
         <div className="text-[10px] font-mono uppercase tracking-widest text-phasor-mute mb-2">
@@ -279,8 +348,23 @@ export default function Hero() {
           data-testid="hero-headline"
           className="reveal font-display text-[42px] leading-[1.02] sm:text-6xl md:text-7xl lg:text-[88px] font-extrabold tracking-[-0.03em]"
         >
-          Real-Time Synthetic <br className="hidden sm:block" />
-          Media <span className="text-gradient-green">Defense.</span>
+          <motion.span
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: [0.2, 0.8, 0.2, 1] }}
+            className="inline-block"
+          >
+            Real-Time Synthetic
+          </motion.span>{" "}
+          <br className="hidden sm:block" />
+          <motion.span
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, delay: 0.1, ease: [0.2, 0.8, 0.2, 1] }}
+            className="inline-block"
+          >
+            Media <span className="text-gradient-green">Defense.</span>
+          </motion.span>
         </h1>
 
         <p
@@ -340,7 +424,11 @@ export default function Hero() {
                   ))}
                 </div>
                 <span>
-                  Join <span className="text-white font-semibold">{count.toLocaleString()}+</span> early adopters securing their calls.
+                  Join{" "}
+                  <span className="text-white font-semibold">
+                    <CountUp value={count} duration={1.6} suffix="+" />
+                  </span>{" "}
+                  early adopters securing their calls.
                 </span>
               </div>
             </>

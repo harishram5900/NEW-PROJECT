@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { Play, Pause, Volume2, Maximize2 } from "lucide-react";
 
 const demos = [
@@ -34,10 +35,14 @@ const demos = [
 function DemoCard({ demo, index }) {
   const [playing, setPlaying] = useState(false);
   return (
-    <article
+    <motion.article
       data-testid={`demo-card-${demo.id}`}
-      className="reveal group relative rounded-2xl glass overflow-hidden noise flex flex-col"
-      style={{ transitionDelay: `${index * 80}ms` }}
+      initial={{ opacity: 0, y: 32 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.7, delay: index * 0.08, ease: [0.2, 0.8, 0.2, 1] }}
+      whileHover={{ y: -6 }}
+      className="group relative rounded-2xl glass overflow-hidden noise flex flex-col"
     >
       {/* Thumbnail */}
       <div className="relative aspect-[16/10] overflow-hidden">
@@ -102,7 +107,7 @@ function DemoCard({ demo, index }) {
 
       {/* bottom hairline */}
       <div className="hairline-x h-px absolute bottom-0 left-0 right-0" />
-    </article>
+    </motion.article>
   );
 }
 
