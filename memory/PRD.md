@@ -1,49 +1,67 @@
 # Phasor — Real-Time Synthetic Media Defense (Waitlist Landing)
 
 ## Original problem statement
-Premium, conversion-focused 3D waitlist landing page for "Phasor" — an omni-channel, real-time AI security platform that instantly detects and blocks synthetic media / AI voice-clone scams across communications. Dark futuristic aesthetic: near-black background, neon green (#00FF87), cyan (#00F2FE) accents, glassmorphism. Sections: Hero + waitlist + 3D waveform, 4-channel product-in-action tabs (Phone / Zoom / Chrome / Email) with UI mockups, 3 simulated video demo cards, tech & compliance stats grid, footer.
+Premium 3D waitlist landing for "Phasor" — omni-channel real-time AI security platform that detects synthetic media / voice-clone scams. Dark futuristic aesthetic: #0B0F19 background, neon green (#00FF87) + cyan (#00F2FE), glassmorphism. Sections: Hero + waitlist + 3D waveform, 4-channel product-in-action tabs (Phone / Zoom / Chrome / Email), 3 simulated video demo cards, tech & compliance stats, footer. Added: floating social sidebar, "Threat is Real" bento stats, media reviews marquee. Latest: viral referral system + beta gate.
 
 ## User personas
-- **Concerned family member / consumer** — wants to protect elderly parents from voice-clone scams (primary).
-- **Enterprise security lead** — evaluating deepfake protection for Zoom / email flows.
-- **Chrome power user** — wants a browser-level filter for social feeds.
+- Concerned family member / consumer (primary)
+- Enterprise security lead
+- Chrome power user
 
-## User choices (confirmed)
-- Waitlist storage: MongoDB with admin API.
-- 3D approach: Mix — R3F for hero waveform, CSS-3D for all mockups.
-- Colors: near-black + neon green primary, cyan secondary.
-- User will provide logo later; main agent generated all other visuals.
+## Architecture (Dec 2025)
+- **Frontend**: React 19 + CRACO, Tailwind, lucide-react, @react-three/fiber v9 + drei + three, axios, sonner.
+- **Backend**: FastAPI + SQLAlchemy 2 (async) + asyncpg. All routes prefixed `/api`. Alembic for migrations.
+- **DB**: **Supabase Postgres** via Transaction Pooler (`aws-1-ca-central-1`, port 6543, statement_cache_size=0).
+- **Env**: `DATABASE_URL` (backend), `REACT_APP_BACKEND_URL` (frontend), `ADMIN_TOKEN` default `phasor-admin-dev`, `CORS_ORIGINS`.
 
-## Architecture
-- **Frontend**: React 19 + CRACO, Tailwind, framer-motion (installed), lucide-react icons, @react-three/fiber v9 + @react-three/drei + three.
-- **Backend**: FastAPI + Motor (MongoDB), routes prefixed with `/api`.
-- **DB**: MongoDB, collection `waitlist` — fields id (uuid), email (lowercased), source, created_at (ISO).
-- **Env**: `REACT_APP_BACKEND_URL` (frontend), `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, optional `ADMIN_TOKEN` (default `phasor-admin-dev`).
+## Schema (`waitlist` table)
+- `id` (uuid str, pk)
+- `email` (str, unique, indexed)
+- `source` (str)
+- `created_at` (tz-aware, indexed)
+- `referral_code` (str[8], unique, indexed) — user's own share code
+- `referred_by_code` (str, FK → waitlist.referral_code, indexed)
+- `referral_count` (int, default 0)
+- `beta_access` (bool, default false, indexed)
 
 ## API surface
-- `GET /api/` — service ping.
-- `POST /api/waitlist` — join waitlist, idempotent on email.
-- `GET /api/waitlist/stats` — `{total, displayed_count}` (baseline 3127 + total for social proof).
-- `GET /api/waitlist/admin?token=…` — protected list.
+- `GET /api/` — status.
+- `POST /api/waitlist` — join. Body: `{email, source?, ref?}`. Returns id, email, base_position, position, referral_code, referral_count, referrals_to_beta, beta_access, beta_slots_left, created_at, already_joined.
+- `GET /api/waitlist/stats` — total, displayed_count (3127+total), beta_claimed, beta_slots_left.
+- `GET /api/waitlist/lookup?code=` — fetch by referral_code (404 if missing).
+- `GET /api/waitlist/admin?token=` — protected list (default token `phasor-admin-dev`).
 
-## Implemented (Dec 2025)
-- Fully responsive dark landing page with sticky glass navbar.
-- Interactive 3D wireframe audio waveform (R3F) with cursor-driven intensity + cyan→green color shift.
-- Waitlist form with live count, idempotent submit, sonner toasts, "Secured" success state.
-- 4-channel CSS-3D mockups: Phone (incoming call + AI clone alert), Zoom (sidebar Phasor widget + deepfake warning), Chrome (extension modal blocking synthetic clip), Email (verified scan header + blocked attachment).
-- 3 glassmorphic video demo cards with play/pause toggle, seek bar, timers, Unsplash thumbnails.
-- Stats & compliance grid: latency, live-updating artifact counter, false-positive rate, throughput; live threat stream sparkline; on-device model card; SOC2/GDPR/HIPAA/ISO/CCPA badges.
-- Minimalist footer with social + status.
-- IntersectionObserver reveal animations, grid backdrop, radial glows, glassmorphism, noise overlay.
-- data-testid attributes on all interactive elements. Testing agent iteration 1 = 100% pass.
+## Business rules (implemented + tested)
+- Each successful referral increments referrer's `referral_count` (atomic UPDATE ... RETURNING to avoid lost updates).
+- Displayed position = `max(1, base_position - referral_count)`. Re-submitting the same email always returns the current adjusted position.
+- Reaching 3 referrals grants `beta_access=true` iff there are beta slots left. Cap = **first 100** users to hit 3 referrals. Validated: after cap is full, 3+-referral users are NOT granted beta.
+- Invalid/missing ref codes are silently ignored.
+
+## Sections implemented
+1. Sticky glass Navbar with real logo image (user-provided).
+2. Hero: headline + subhead + waitlist form + 3D wireframe waveform (R3F, cyan→green intensity on cursor).
+3. Post-signup SharePanel: position, referral code + share URL, copy button (with clipboard-API + textarea fallback), Twitter/Email/SMS share, 3-dot beta progress meter, "use different email" reset.
+4. ThreatStats bento: 3 Seconds / $40B / 1 in 4 / 77%.
+5. 4-channel CSS-3D mockups: Phone / Zoom / Chrome / Email with tabs.
+6. VideoDemos: 3 glassmorphic player cards with play/pause toggle.
+7. MediaReviews: infinite marquee (CNN, NBC, WSLS, FBI, Consumer Reports, Deloitte, WSJ, Reuters) + 3 quote cards.
+8. StatsGrid: 4 KPIs + live sparkline + threat log + on-device model card + compliance badges.
+9. Footer with real logo + LinkedIn/TikTok/Instagram/YouTube.
+10. FloatingSocial: fixed vertical dock with 4 socials (hover cyan glow, tooltip).
 
 ## Test credentials
-- Admin API token: `phasor-admin-dev` (from env `ADMIN_TOKEN`, default).
+- Admin API token: `phasor-admin-dev`.
+- Supabase Transaction Pooler URI in `/app/backend/.env` as `DATABASE_URL`.
+
+## Test iterations
+- Iter 1: MVP baseline — 100% pass.
+- Iter 2: Logo + social + threat stats + media reviews — 100% pass, no regressions.
+- Iter 3: Referral + beta unlock + 100-slot cap — 13/13 backend pass, all frontend flows pass. Clipboard bug fixed post-report.
 
 ## Backlog / Next
-- P1: Wire user-provided logo into Navbar + Footer.
-- P1: Email confirmation delivery (Resend/SendGrid) after waitlist join.
-- P2: Add referral share link + position leaderboard for viral growth.
-- P2: Replace static Unsplash thumbs with real product demo screen recordings.
-- P2: Analytics (PostHog/Plausible) + UTM capture on waitlist row.
-- P3: A11y audit + prefers-reduced-motion fallback for R3F canvas.
+- P1: Email confirmation delivery (Resend) after waitlist join with the share link inline.
+- P1: Public leaderboard section ("Top referrers this week") from `/api/waitlist/admin` filtered public view.
+- P2: A11y audit + prefers-reduced-motion fallback for R3F canvas.
+- P2: UTM capture + PostHog analytics on waitlist row.
+- P3: Rate-limit POST /api/waitlist per IP.
+- Optional cleanup: remove MONGO_URL/DB_NAME from backend/.env (unused since Supabase migration).

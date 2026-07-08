@@ -145,12 +145,31 @@ async def join_waitlist(payload: WaitlistCreate, db: AsyncSession = Depends(get_
         result = await db.execute(select(WaitlistEntry).where(WaitlistEntry.email == email_norm))
         entry = result.scalar_one()
 
-    # Award referrer +1 referral (skips 1 spot)
+    # Award referrer +1 referral atomically (skips 1 spot)
     if referrer and referrer.id != entry.id:
-        referrer.referral_count = (referrer.referral_count or 0) + 1
+        from sqlalchemy import update
+        upd = (
+            update(WaitlistEntry)
+            .where(WaitlistEntry.id == referrer.id)
+            .values(referral_count=WaitlistEntry.referral_count + 1)
+            .returning(WaitlistEntry.referral_count, WaitlistEntry.beta_access)
+        )
+        rres = await db.execute(upd)
+        row = rres.first()
         await db.commit()
-        await db.refresh(referrer)
-        await _maybe_grant_beta(db, referrer)
+        if row is not None:
+            new_count, already_beta = row.referral_count, row.beta_access
+            if not already_beta and new_count >= REFERRALS_REQUIRED_FOR_BETA:
+                # Atomic conditional grant: only if under cap
+                grant = (
+                    update(WaitlistEntry)
+                    .where(WaitlistEntry.id == referrer.id, WaitlistEntry.beta_access.is_(False))
+                    .values(beta_access=True)
+                )
+                slots = await _beta_slots_left(db)
+                if slots > 0:
+                    await db.execute(grant)
+                    await db.commit()
 
     base, displayed = await _compute_position(db, entry)
     slots = await _beta_slots_left(db)

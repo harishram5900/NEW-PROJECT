@@ -27,11 +27,38 @@ function ProgressDots({ count = 0 }) {
 function SharePanel({ data, shareUrl, onReset }) {
   const [copied, setCopied] = useState("");
 
-  const copy = (val, key) => {
-    navigator.clipboard.writeText(val);
-    setCopied(key);
-    toast.success("Copied to clipboard");
-    setTimeout(() => setCopied(""), 1500);
+  const copy = async (val, key) => {
+    const done = () => {
+      setCopied(key);
+      toast.success("Copied to clipboard");
+      setTimeout(() => setCopied(""), 1500);
+    };
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(val);
+        done();
+        return;
+      }
+      throw new Error("clipboard unavailable");
+    } catch (err) {
+      // Fallback: hidden textarea + execCommand
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = val;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-1000px";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) done();
+        else toast.error("Copy failed — please copy manually");
+      } catch {
+        toast.error("Copy failed — please copy manually");
+      }
+    }
   };
 
   const message =
