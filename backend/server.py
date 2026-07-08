@@ -1,35 +1,27 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+
+from database import get_db
+from models import WaitlistEntry
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+load_dotenv(ROOT_DIR / ".env")
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-# ---------- Models ----------
-class WaitlistEntry(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    email: EmailStr
-    source: Optional[str] = "landing_hero"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
+# ---------- Schemas ----------
 class WaitlistCreate(BaseModel):
     email: EmailStr
     source: Optional[str] = "landing_hero"
@@ -44,65 +36,76 @@ class WaitlistResponse(BaseModel):
 
 class WaitlistStats(BaseModel):
     total: int
-    displayed_count: int  # includes seed offset (3,000+ social proof)
+    displayed_count: int
+
+
+class WaitlistItem(BaseModel):
+    id: str
+    email: EmailStr
+    source: Optional[str] = None
+    created_at: datetime
 
 
 # ---------- Routes ----------
 @api_router.get("/")
 async def root():
-    return {"service": "Phasor API", "status": "online"}
+    return {"service": "Phasor API", "status": "online", "storage": "supabase"}
 
 
 @api_router.post("/waitlist", response_model=WaitlistResponse)
-async def join_waitlist(payload: WaitlistCreate):
+async def join_waitlist(payload: WaitlistCreate, db: AsyncSession = Depends(get_db)):
     email_norm = payload.email.lower().strip()
 
-    existing = await db.waitlist.find_one({"email": email_norm})
+    # idempotent lookup
+    result = await db.execute(select(WaitlistEntry).where(WaitlistEntry.email == email_norm))
+    existing = result.scalar_one_or_none()
     if existing:
-        # Idempotent: return their existing position
-        total_before = await db.waitlist.count_documents({
-            "created_at": {"$lte": existing["created_at"]}
-        })
+        pos_res = await db.execute(
+            select(func.count(WaitlistEntry.id)).where(WaitlistEntry.created_at <= existing.created_at)
+        )
+        position = pos_res.scalar_one() or 1
         return WaitlistResponse(
-            id=existing["id"],
-            email=existing["email"],
-            position=total_before,
-            created_at=datetime.fromisoformat(existing["created_at"]) if isinstance(existing["created_at"], str) else existing["created_at"],
+            id=existing.id, email=existing.email, position=position, created_at=existing.created_at
         )
 
     entry = WaitlistEntry(email=email_norm, source=payload.source or "landing_hero")
-    doc = entry.model_dump()
-    doc["created_at"] = doc["created_at"].isoformat()
-    await db.waitlist.insert_one(doc)
+    db.add(entry)
+    try:
+        await db.commit()
+        await db.refresh(entry)
+    except IntegrityError:
+        # race — return the existing one
+        await db.rollback()
+        result = await db.execute(select(WaitlistEntry).where(WaitlistEntry.email == email_norm))
+        entry = result.scalar_one()
 
-    total = await db.waitlist.count_documents({})
-    return WaitlistResponse(
-        id=entry.id,
-        email=entry.email,
-        position=total,
-        created_at=entry.created_at,
-    )
+    total_res = await db.execute(select(func.count(WaitlistEntry.id)))
+    total = total_res.scalar_one() or 1
+    return WaitlistResponse(id=entry.id, email=entry.email, position=total, created_at=entry.created_at)
 
 
 @api_router.get("/waitlist/stats", response_model=WaitlistStats)
-async def waitlist_stats():
-    total = await db.waitlist.count_documents({})
-    # Social proof baseline: 3,000+ early adopters
+async def waitlist_stats(db: AsyncSession = Depends(get_db)):
+    total_res = await db.execute(select(func.count(WaitlistEntry.id)))
+    total = total_res.scalar_one() or 0
     baseline = 3127
     return WaitlistStats(total=total, displayed_count=baseline + total)
 
 
-@api_router.get("/waitlist/admin", response_model=List[WaitlistEntry])
-async def list_waitlist(token: Optional[str] = None):
+@api_router.get("/waitlist/admin", response_model=List[WaitlistItem])
+async def list_waitlist(token: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     admin_token = os.environ.get("ADMIN_TOKEN", "phasor-admin-dev")
     if token != admin_token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    docs = await db.waitlist.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    for d in docs:
-        if isinstance(d.get("created_at"), str):
-            d["created_at"] = datetime.fromisoformat(d["created_at"])
-    return docs
+    result = await db.execute(
+        select(WaitlistEntry).order_by(WaitlistEntry.created_at.desc()).limit(1000)
+    )
+    rows = result.scalars().all()
+    return [
+        WaitlistItem(id=r.id, email=r.email, source=r.source, created_at=r.created_at)
+        for r in rows
+    ]
 
 
 app.include_router(api_router)
@@ -110,18 +113,10 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
