@@ -1,0 +1,66 @@
+{
+  "summary": "Iteration 3 (referral + beta) full backend+frontend testing. Backend: 13/13 pytest cases green (health, stats shape, first-time signup shape incl 8-char hex referral_code, idempotent re-submit reflects current referral_count/position, invalid ref ignored, referral increments referrer & bumps displayed position, lookup by code case-insensitive + 404, beta unlock after 3 refs decrements slots, BETA_ACCESS_CAP=100 saturation via direct SQL then fresh 3-ref user is NOT granted beta, admin auth). Frontend: signup, ref-banner from ?ref=CODE, share-panel + share-url + share-copy/twitter/email/sms, referral flow end-to-end (userA=45 after 1 referral, was #46, dots 1/3, 'Refer 2 friends to unlock Beta'), 3/3 beta unlock UI shows green border + 'Beta access unlocked'. One critical UI dev-overlay bug from unhandled clipboard promise rejection.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SharePanel copy",
+        "issue": "navigator.clipboard.writeText() promise rejection is unhandled. In preview/iframe context the Clipboard API returns 'Write permission denied' which surfaces as a full-screen React dev-overlay (Uncaught runtime errors) blocking further clicks (e.g. share-reset). In production build it will silently swallow but the copy will still fail without user feedback.",
+        "selector": "[data-testid=\"share-copy\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed": [
+    "Backend GET /api/ storage=supabase, service online",
+    "Backend GET /api/waitlist/stats keys total/displayed_count/beta_claimed/beta_slots_left; displayed=total+3127; slots=100-claimed",
+    "Backend POST /api/waitlist first-time: shape ok, referral_code=8-char [0-9A-F]{8}, referral_count=0, referrals_to_beta=3, beta_access=false, position=base_position, already_joined=false",
+    "Backend POST idempotent (same email upper/lower): same id, same referral_code, already_joined=true",
+    "Backend POST invalid email -> 422",
+    "Backend POST ref=ZZZZZZZZ (unknown) silently ignored, signup still succeeds",
+    "Backend referral flow: A creates code, B signs up with ref=code, re-submit A returns referral_count=1, referrals_to_beta=2, position=base-1",
+    "Backend GET /api/waitlist/lookup?code=<valid> 200 returns full response; ?code=NOTREAL0 -> 404; case-insensitive lookup ok",
+    "Backend 3-referral unlock: referrer beta_access flips true, referrals_to_beta=0, stats.beta_claimed increases, stats.beta_slots_left decreases",
+    "Backend BETA cap saturation: 100 rows inserted via SQL -> beta_slots_left=0; fresh user reaching 3 refs is NOT granted beta_access (guard enforced). Cleanup via DELETE WHERE source='capfill'",
+    "Backend GET /api/waitlist/admin without token -> 401; with token -> 200 list w/ id, email, referral_code, referral_count, beta_access, position; no _id leak",
+    "Frontend landing loads with no ?ref -> ref-banner absent",
+    "Frontend ?ref=CODE -> data-testid=ref-banner shows 'Referral CODE applied · your friend skips 1 spot when you join'",
+    "Frontend POST includes ref in body; user B signed up via ?ref link -> share-panel shown",
+    "Frontend share-panel: You're #X in line, share-url containing ?ref=<code>, code line, share-copy button, share-twitter/share-email/share-sms with correct href schemes (twitter.com/intent/tweet, mailto:, sms:)",
+    "Frontend copy button toggles label to 'Copied' briefly",
+    "Frontend end-to-end referral: seed userA (base #46) -> B signs up with A's code -> re-submit A shows You're #45, hint '(was #46 — you skipped 1 spot)', progress dots aria-label '1/3 referrals', 'Refer 2 friends to unlock Beta'",
+    "Frontend beta unlock UI: after 3 referrals, panel shows 'Beta access unlocked', 3/3 dots filled, green border (border-phasor-green/50)",
+    "Frontend regression: hero-headline, hero-sub, hero-pill, nav-logo, review-nbc/fbi/cnn, waveform, channels all present"
+  ],
+  "failed": [],
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration_3.xml"
+  ],
+  "action_items": [
+    "Wrap navigator.clipboard.writeText in .catch() (or try/await) inside SharePanel.copy() to prevent unhandled promise rejection triggering the React dev overlay. Also fall back to document.execCommand('copy') via a hidden textarea when clipboard.writeText fails (iframe/insecure contexts) so users actually get the URL on the clipboard."
+  ],
+  "critical_code_review_comments": [
+    "server.py::join_waitlist — the referrer.referral_count update relies on read-modify-write without row-level locking. Under concurrent referred signups (2 users signup with same ref in parallel) the count can under-increment (lost update). Consider UPDATE ... SET referral_count = referral_count + 1 RETURNING referral_count, then decide beta grant off the returned value.",
+    "server.py::_maybe_grant_beta — check-then-set on beta_slots_left is racy under high concurrency (two referrers can each pass the slots>0 check and both get granted, exceeding 100). For a landing waitlist it's low risk but worth a note. A DB-side conditional UPDATE with a WHERE clause counting current beta_access=true rows would be safer.",
+    "server.py::_compute_position — O(N) count query per admin row (used in GET /api/waitlist/admin loop). For 1000 rows this makes 1000 count queries. Consider computing all base positions via a single windowed query.",
+    "Hero.js — copy() lacks catch on clipboard promise (see UI bug above). Also `setCopied(key)` is called before write succeeds, giving false-positive Copied feedback when clipboard write actually fails.",
+    "models.py — email column length 320 & unique — good. referral_code length 12 but generated as 8 chars — fine but consider making it String(8) to be explicit. `_short_code` uses uuid4().hex[:8].upper() which has ~2^32 collision space; for 100k users collision probability is ~1e-3. Consider a retry-on-IntegrityError loop for referral_code, or extend to 10 chars.",
+    "backend/.env — MONGO_URL and DB_NAME kept but unused (Supabase now the only store). Safe to remove or keep as historical."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (rewritten for iteration 3 referral+beta coverage)",
+    "/app/test_reports/iteration_3.json (new)",
+    "/app/test_reports/pytest/iteration_3.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% functional (1 dev-overlay UX bug)"},
+  "test_credentials": "ADMIN_TOKEN=phasor-admin-dev; Supabase pooler URI already in /app/backend/.env DATABASE_URL",
+  "seed_data_creation": "During testing ~55 rows (TEST_iter3_*, seed_userA_frontend, seed_userD_beta, capfill rows) were created and then fully cleaned via DELETE WHERE email LIKE 'test_iter3_%' OR email LIKE 'seed_%' plus fixture DELETE WHERE source='capfill'. Table returned to (0,0).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 3 fully green backend. One functional-but-annoying UI bug: unhandled clipboard promise rejection causing React dev-overlay in preview iframe — main agent must add .catch and a fallback. All referral / beta / cap behaviour is correct on the API. Beta cap saturation is proven via direct SQL. When re-testing, always DELETE testing rows after (test file's fixture already does that for capfill). psycopg2-binary was installed to /root/.venv for the SQL saturation fixture. Do NOT re-add MONGO_URL usage; storage is Supabase.",
+  "rca of the issue": "Clipboard dev-overlay bug — root cause: navigator.clipboard.writeText() returns a Promise. In embedded preview iframes without clipboard-write permission it rejects with 'Write permission denied'. Hero.js/SharePanel.copy() invokes it without .then/.catch, so React's development error overlay catches the unhandled rejection and injects a full-page red overlay that intercepts pointer events (breaks share-reset and other clicks). Reproduction: open preview URL, submit any email, click Copy button — overlay appears. Mitigation: change `navigator.clipboard.writeText(val);` to `navigator.clipboard.writeText(val).catch(() => { /* fallback with textarea+execCommand */ });` and only setCopied on success (or on fallback success). Also drop the toast when copy actually failed."
+}

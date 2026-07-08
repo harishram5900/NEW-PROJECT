@@ -1,18 +1,200 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Copy, Share2, Sparkles, Twitter, Mail as MailIcon, Send } from "lucide-react";
 import WaveformCanvas from "./WaveformCanvas";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+function ProgressDots({ count = 0 }) {
+  return (
+    <div className="flex items-center gap-1.5" aria-label={`${count}/3 referrals`}>
+      {[0, 1, 2].map((i) => {
+        const filled = i < count;
+        return (
+          <span
+            key={i}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              filled ? "w-8 bg-phasor-green shadow-[0_0_12px_rgba(0,255,135,0.7)]" : "w-4 bg-white/10"
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SharePanel({ data, shareUrl, onReset }) {
+  const [copied, setCopied] = useState("");
+
+  const copy = (val, key) => {
+    navigator.clipboard.writeText(val);
+    setCopied(key);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopied(""), 1500);
+  };
+
+  const message =
+    "I just joined the Phasor waitlist — real-time AI voice-clone defense for phone calls, meetings, browsers & inboxes. Join with my link:";
+
+  const socialLinks = [
+    {
+      key: "twitter",
+      Icon: Twitter,
+      label: "Twitter / X",
+      href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(message)}&url=${encodeURIComponent(shareUrl)}`,
+    },
+    {
+      key: "email",
+      Icon: MailIcon,
+      label: "Email",
+      href: `mailto:?subject=${encodeURIComponent("Try Phasor with me")}&body=${encodeURIComponent(message + "\n\n" + shareUrl)}`,
+    },
+    {
+      key: "sms",
+      Icon: Send,
+      label: "SMS",
+      href: `sms:?&body=${encodeURIComponent(message + " " + shareUrl)}`,
+    },
+  ];
+
+  const remaining = data.referrals_to_beta;
+  const hasBeta = data.beta_access;
+
+  return (
+    <div
+      data-testid="share-panel"
+      className="glass-strong rounded-2xl p-6 sm:p-7 text-left relative overflow-hidden"
+    >
+      <div className="absolute -top-24 -right-24 w-72 h-72 radial-glow-green blur-3xl opacity-40 pointer-events-none" />
+
+      {/* Header row */}
+      <div className="relative flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-phasor-green">
+            <CheckCircle2 className="w-4 h-4" />
+            {data.already_joined ? "Welcome back" : "You're in"}
+          </div>
+          <div className="mt-2 font-display text-2xl sm:text-3xl font-semibold tracking-tight">
+            You're{" "}
+            <span
+              className="text-phasor-green"
+              style={{ textShadow: "0 0 24px rgba(0,255,135,0.55)" }}
+            >
+              #{data.position}
+            </span>{" "}
+            in line
+          </div>
+          {data.base_position !== data.position && (
+            <div className="mt-1 text-xs text-phasor-mute font-mono">
+              (was #{data.base_position} — you skipped {data.base_position - data.position} spot{data.base_position - data.position === 1 ? "" : "s"})
+            </div>
+          )}
+        </div>
+        <button
+          data-testid="share-reset"
+          onClick={onReset}
+          className="text-xs font-mono text-phasor-mute hover:text-white transition-colors"
+        >
+          use different email
+        </button>
+      </div>
+
+      {/* Beta status */}
+      <div
+        className={`relative mt-5 rounded-xl border p-4 ${
+          hasBeta
+            ? "border-phasor-green/50 bg-phasor-green/[0.07]"
+            : "border-white/10 bg-white/[0.03]"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Sparkles className={`w-5 h-5 ${hasBeta ? "text-phasor-green" : "text-phasor-cyan"}`} />
+            <div>
+              <div className="font-display text-sm font-semibold">
+                {hasBeta ? "Beta access unlocked" : `Refer ${remaining} friend${remaining === 1 ? "" : "s"} to unlock Beta`}
+              </div>
+              <div className="text-xs text-phasor-mute mt-0.5">
+                {hasBeta
+                  ? "You're among the first 100 with early Beta access."
+                  : `First 100 to hit 3 referrals get in. ${data.beta_slots_left} slot${data.beta_slots_left === 1 ? "" : "s"} left.`}
+              </div>
+            </div>
+          </div>
+          <ProgressDots count={Math.min(3, data.referral_count)} />
+        </div>
+      </div>
+
+      {/* Share link */}
+      <div className="relative mt-5">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-phasor-mute mb-2">
+          Your unique referral link
+        </div>
+        <div className="flex items-stretch gap-2">
+          <div
+            data-testid="share-url"
+            className="flex-1 rounded-full bg-black/40 border border-white/10 px-4 py-3 text-xs sm:text-sm font-mono text-white/85 truncate"
+          >
+            {shareUrl}
+          </div>
+          <button
+            data-testid="share-copy"
+            onClick={() => copy(shareUrl, "url")}
+            className="btn-primary rounded-full px-4 sm:px-5 flex items-center gap-2 text-sm shrink-0"
+          >
+            {copied === "url" ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copied === "url" ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {/* Social share */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-phasor-mute mr-1">
+          <Share2 className="w-3 h-3 inline mr-1 -mt-0.5" /> Share via
+        </span>
+        {socialLinks.map(({ key, Icon, label, href }) => (
+          <a
+            key={key}
+            data-testid={`share-${key}`}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] hover:border-phasor-cyan/40 hover:bg-phasor-cyan/[0.05] transition-colors px-3 py-1.5 text-xs"
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </a>
+        ))}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-phasor-mute">
+        <span>Code · {data.referral_code}</span>
+        <span>+1 spot skipped per friend</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Hero() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [joined, setJoined] = useState(false);
+  const [result, setResult] = useState(null);
   const [count, setCount] = useState(3127);
+  const [incomingRef, setIncomingRef] = useState(null);
 
-  React.useEffect(() => {
+  // Read ?ref= on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      setIncomingRef(ref.toUpperCase());
+      toast.info("Referral applied — your friend just skipped 1 spot.");
+    }
+  }, []);
+
+  useEffect(() => {
     axios
       .get(`${API}/waitlist/stats`)
       .then((r) => setCount(r.data.displayed_count))
@@ -27,10 +209,18 @@ export default function Hero() {
     }
     setLoading(true);
     try {
-      const res = await axios.post(`${API}/waitlist`, { email, source: "landing_hero" });
-      setJoined(true);
-      toast.success(`Secured. You are #${res.data.position} in line.`);
-      setCount((c) => c + 1);
+      const res = await axios.post(`${API}/waitlist`, {
+        email,
+        source: "landing_hero",
+        ref: incomingRef || undefined,
+      });
+      setResult(res.data);
+      if (res.data.already_joined) {
+        toast.success(`Welcome back — you're #${res.data.position}${res.data.beta_access ? " · Beta unlocked" : ""}`);
+      } else {
+        toast.success(`Secured. You are #${res.data.position} in line.`);
+        setCount((c) => c + 1);
+      }
     } catch (err) {
       toast.error("Something went wrong. Try again.");
     } finally {
@@ -38,10 +228,18 @@ export default function Hero() {
     }
   };
 
+  const reset = () => {
+    setResult(null);
+    setEmail("");
+  };
+
+  const shareUrl = result
+    ? `${window.location.origin}${window.location.pathname}?ref=${result.referral_code}`
+    : "";
+
   return (
     <section id="hero" className="relative pt-20 pb-24 sm:pt-28 sm:pb-32 px-6">
       <div className="max-w-6xl mx-auto text-center">
-        {/* micro pill */}
         <div
           data-testid="hero-pill"
           className="reveal inline-flex items-center gap-2 rounded-full glass px-3.5 py-1.5 mb-8 text-xs font-mono tracking-wider uppercase text-phasor-mute"
@@ -62,67 +260,69 @@ export default function Hero() {
           data-testid="hero-sub"
           className="reveal mt-6 max-w-2xl mx-auto text-base sm:text-lg text-phasor-mute leading-relaxed"
         >
-          Phasor scans active phone calls, video streams, extensions, and emails in real time
-          to spot AI clone scams instantly. Protect your family.
+          Phasor scans active phone calls, video streams, extensions, and emails in real time to spot AI clone scams instantly. Protect your family.
         </p>
 
-        {/* Waitlist form */}
         <div id="waitlist" className="reveal mt-10 max-w-xl mx-auto">
-          <form
-            data-testid="waitlist-form"
-            onSubmit={submit}
-            className="glass-strong rounded-full p-1.5 pl-5 flex items-center gap-3 shadow-[0_0_60px_-20px_rgba(0,255,135,0.6)]"
-          >
-            <input
-              data-testid="waitlist-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@family.com"
-              className="input-ghost flex-1 bg-transparent border-0 rounded-full px-2 py-3 text-sm sm:text-base placeholder-white/35 focus:ring-0"
-              style={{ background: "transparent", border: "none", boxShadow: "none" }}
-              disabled={joined}
-            />
-            <button
-              data-testid="waitlist-submit"
-              type="submit"
-              disabled={loading || joined}
-              className="btn-primary rounded-full px-5 sm:px-6 py-3 text-sm sm:text-base flex items-center gap-2 disabled:opacity-70"
-            >
-              {joined ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" /> Secured
-                </>
-              ) : (
-                <>
+          {!result ? (
+            <>
+              {incomingRef && (
+                <div
+                  data-testid="ref-banner"
+                  className="mb-3 inline-flex items-center gap-2 rounded-full bg-phasor-cyan/10 border border-phasor-cyan/30 px-3 py-1 text-[11px] font-mono text-phasor-cyan"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Referral <span className="text-white/90">{incomingRef}</span> applied · your friend skips 1 spot when you join
+                </div>
+              )}
+              <form
+                data-testid="waitlist-form"
+                onSubmit={submit}
+                className="glass-strong rounded-full p-1.5 pl-5 flex items-center gap-3 shadow-[0_0_60px_-20px_rgba(0,255,135,0.6)]"
+              >
+                <input
+                  data-testid="waitlist-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@family.com"
+                  className="flex-1 rounded-full px-2 py-3 text-sm sm:text-base placeholder-white/35 focus:ring-0 bg-transparent border-none outline-none text-white"
+                />
+                <button
+                  data-testid="waitlist-submit"
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary rounded-full px-5 sm:px-6 py-3 text-sm sm:text-base flex items-center gap-2 disabled:opacity-70"
+                >
                   {loading ? "Securing…" : "Secure Your Communications"}
                   <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div data-testid="hero-social-proof" className="mt-4 flex items-center justify-center gap-3 text-xs sm:text-sm text-phasor-mute font-mono">
-            <div className="flex -space-x-2">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-6 h-6 rounded-full border border-phasor-bg"
-                  style={{
-                    background: `hsl(${140 + i * 12}, 80%, ${45 + i * 5}%)`,
-                  }}
-                />
-              ))}
-            </div>
-            <span>
-              Join <span className="text-white font-semibold">{count.toLocaleString()}+</span> early adopters securing their calls.
-            </span>
-          </div>
+                </button>
+              </form>
+              <div
+                data-testid="hero-social-proof"
+                className="mt-4 flex items-center justify-center gap-3 text-xs sm:text-sm text-phasor-mute font-mono"
+              >
+                <div className="flex -space-x-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="w-6 h-6 rounded-full border border-phasor-bg"
+                      style={{ background: `hsl(${140 + i * 12}, 80%, ${45 + i * 5}%)` }}
+                    />
+                  ))}
+                </div>
+                <span>
+                  Join <span className="text-white font-semibold">{count.toLocaleString()}+</span> early adopters securing their calls.
+                </span>
+              </div>
+            </>
+          ) : (
+            <SharePanel data={result} shareUrl={shareUrl} onReset={reset} />
+          )}
         </div>
       </div>
 
-      {/* 3D Waveform */}
       <div className="reveal max-w-6xl mx-auto mt-16 relative">
         <div className="absolute -inset-6 radial-glow-green blur-3xl opacity-60 pointer-events-none" />
         <div className="relative glass rounded-3xl overflow-hidden noise">
