@@ -28,6 +28,7 @@ export default function Navbar() {
           <button data-testid="nav-channels" onClick={() => scrollTo("channels")} className="hover:text-white transition-colors">Channels</button>
           <button data-testid="nav-demos" onClick={() => scrollTo("demos")} className="hover:text-white transition-colors">Demos</button>
           <button data-testid="nav-arch" onClick={() => scrollTo("architecture")} className="hover:text-white transition-colors">Architecture</button>
+          <button data-testid="nav-leaderboard" onClick={() => scrollTo("leaderboard")} className="hover:text-white transition-colors">Leaderboard</button>
         </nav>
 
         <button

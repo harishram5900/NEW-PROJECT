@@ -4,6 +4,7 @@ import Hero from "../components/Hero";
 import ThreatStats from "../components/ThreatStats";
 import ChannelShowcase from "../components/ChannelShowcase";
 import VideoDemos from "../components/VideoDemos";
+import Leaderboard from "../components/Leaderboard";
 import MediaReviews from "../components/MediaReviews";
 import StatsGrid from "../components/StatsGrid";
 import Footer from "../components/Footer";
@@ -41,6 +42,7 @@ export default function Landing() {
         <ThreatStats />
         <ChannelShowcase />
         <VideoDemos />
+        <Leaderboard />
         <MediaReviews />
         <StatsGrid />
       </main>

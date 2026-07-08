@@ -7,9 +7,10 @@ from pathlib import Path
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timezone, timedelta
 
 from database import get_db
 from models import WaitlistEntry
@@ -52,6 +53,19 @@ class WaitlistStats(BaseModel):
     beta_slots_left: int
 
 
+class LeaderboardEntry(BaseModel):
+    rank: int
+    handle: str            # privacy-masked (e.g. "al•••@g•••.com")
+    referrals: int
+    beta_access: bool
+
+
+class LeaderboardResponse(BaseModel):
+    window: str            # "7d" or "all"
+    updated_at: datetime
+    entries: List[LeaderboardEntry]
+
+
 class WaitlistItem(BaseModel):
     id: str
     email: EmailStr
@@ -92,6 +106,23 @@ async def _maybe_grant_beta(db: AsyncSession, entry: WaitlistEntry) -> None:
         entry.beta_access = True
         await db.commit()
         await db.refresh(entry)
+
+
+def _mask_email(email: str) -> str:
+    """Privacy-mask an email: keep first 2 chars of local + first letter of domain + tld."""
+    try:
+        local, domain = email.split("@", 1)
+    except ValueError:
+        return "•••"
+    lo = local[:2] if len(local) >= 2 else local
+    # split domain into name + tld
+    if "." in domain:
+        dname, _, dtld = domain.partition(".")
+    else:
+        dname, dtld = domain, ""
+    dn = dname[:1] if dname else ""
+    tld = f".{dtld.split('.')[-1]}" if dtld else ""
+    return f"{lo}•••@{dn}•••{tld}"
 
 
 # ---------- Routes ----------
@@ -225,6 +256,47 @@ async def lookup(code: str, db: AsyncSession = Depends(get_db)):
         beta_slots_left=slots,
         created_at=entry.created_at,
         already_joined=True,
+    )
+
+
+@api_router.get("/waitlist/leaderboard", response_model=LeaderboardResponse)
+async def leaderboard(window: str = "7d", limit: int = 10, db: AsyncSession = Depends(get_db)):
+    """Top referrers. window=7d counts only referred users created within last 7 days; window=all is all-time."""
+    referrer = WaitlistEntry.__table__.alias("referrer")
+    referred = WaitlistEntry.__table__.alias("referred")
+
+    join_cond = referred.c.referred_by_code == referrer.c.referral_code
+    if window == "7d":
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        join_cond = and_(join_cond, referred.c.created_at >= cutoff)
+
+    stmt = (
+        select(
+            referrer.c.email,
+            referrer.c.beta_access,
+            func.count(referred.c.id).label("cnt"),
+        )
+        .select_from(referrer.outerjoin(referred, join_cond))
+        .group_by(referrer.c.id, referrer.c.email, referrer.c.beta_access)
+        .having(func.count(referred.c.id) > 0)
+        .order_by(func.count(referred.c.id).desc(), referrer.c.email.asc())
+        .limit(max(1, min(50, limit)))
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    entries = [
+        LeaderboardEntry(
+            rank=i + 1,
+            handle=_mask_email(r.email),
+            referrals=int(r.cnt),
+            beta_access=bool(r.beta_access),
+        )
+        for i, r in enumerate(rows)
+    ]
+    return LeaderboardResponse(
+        window=window if window in ("7d", "all") else "7d",
+        updated_at=datetime.now(timezone.utc),
+        entries=entries,
     )
 
 
