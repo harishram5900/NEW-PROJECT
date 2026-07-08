@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 2 regression + new-feature test of Phasor waitlist landing. All 6 backend pytest cases pass. All 20+ frontend checks pass (FloatingSocial, ThreatStats, MediaReviews marquee + 3 reviews, Navbar logo, Footer social+logo, mobile hidden, no overflow, no console errors, waitlist form + channel tabs regression).",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "passed": [
+    "Backend: GET /api/ -> {service:'Phasor API', status:'online'}",
+    "Backend: GET /api/waitlist/stats returns total+displayed_count with 3127 baseline",
+    "Backend: POST /api/waitlist valid email -> 200 with id/email/position/created_at, and increments total",
+    "Backend: POST /api/waitlist same email idempotent -> same id, total unchanged",
+    "Backend: POST /api/waitlist invalid email -> 422",
+    "Backend: GET /api/waitlist/admin without token -> 401; with token -> 200 list (no _id leak)",
+    "Frontend: nav-logo img src from customer-assets.emergentagent.com",
+    "Frontend: FloatingSocial visible desktop 1920 & 1280; hidden on 375 mobile",
+    "Frontend: social-linkedin/tiktok/instagram/youtube href + target=_blank correct",
+    "Frontend: threat-stat-seconds='3', loss='$40B', targets='1 in 4', success='77%'",
+    "Frontend: media-marquee present with .animate-marquee inner track",
+    "Frontend: review-nbc / review-fbi / review-cnn present with exact quote fragments",
+    "Frontend: footer-social-{linkedin,tiktok,instagram,youtube} + footer logo img ok",
+    "Frontend: 0px horizontal overflow at 1920, 1280 and 375",
+    "Frontend: waitlist form submit -> Secured success state (no regression)",
+    "Frontend: all 4 channel tabs (phone/zoom/chrome/email) clickable (no regression)",
+    "Frontend: zero console errors after filtering benign WebGL"
+  ],
+  "failed": [],
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration_2.xml"
+  ],
+  "critical_code_review_comments": [
+    "Backend still uses MongoDB — Supabase Transaction Pooler URI migration is deferred and expected by product statement. Once user provides the URI, migration is required.",
+    "server.py: waitlist stores created_at as ISO string; the existing-entry response path re-parses it correctly. Consider storing native datetime in Mongo for simpler code paths.",
+    "server.py: ADMIN_TOKEN default 'phasor-admin-dev' is fine for dev but should be forced via env in production; consider raising if unset in prod.",
+    "FloatingSocial hides on <sm (<640px). Tablet 640-1024 shows it; consider hiding <md to avoid overlap with content on smaller tablets — currently no overlap detected but worth noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new)",
+    "/app/test_reports/iteration_2.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "ADMIN_TOKEN default 'phasor-admin-dev' works for /api/waitlist/admin",
+  "seed_data_creation": "Added ~2 TEST_iter2_* waitlist entries during idempotent test (safe test emails, prefixed).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 2 fully green. New sections FloatingSocial / ThreatStats / MediaReviews validated with exact data-testid selectors and copy fragments. Backend unchanged from iter 1. When Supabase pooler URI arrives, next iter must re-run backend_test.py after Postgres migration and remove Mongo assertions if any."
+}

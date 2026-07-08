@@ -1,10 +1,13 @@
 import React, { useEffect } from "react";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
+import ThreatStats from "../components/ThreatStats";
 import ChannelShowcase from "../components/ChannelShowcase";
 import VideoDemos from "../components/VideoDemos";
+import MediaReviews from "../components/MediaReviews";
 import StatsGrid from "../components/StatsGrid";
 import Footer from "../components/Footer";
+import FloatingSocial from "../components/FloatingSocial";
 
 export default function Landing() {
   useEffect(() => {
@@ -32,10 +35,13 @@ export default function Landing() {
       <div className="pointer-events-none fixed bottom-0 right-0 w-[700px] h-[700px] radial-glow-cyan blur-3xl opacity-40" />
 
       <Navbar />
+      <FloatingSocial />
       <main className="relative z-10">
         <Hero />
+        <ThreatStats />
         <ChannelShowcase />
         <VideoDemos />
+        <MediaReviews />
         <StatsGrid />
       </main>
       <Footer />

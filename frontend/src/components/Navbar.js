@@ -1,5 +1,6 @@
 import React from "react";
-import { Shield } from "lucide-react";
+
+const LOGO_URL = "https://customer-assets.emergentagent.com/job_voice-guard-ai-3/artifacts/v7p21zyd_Gemini_Generated_Image_elo52gelo52gelo5.png";
 
 export default function Navbar() {
   const scrollTo = (id) => {
@@ -13,11 +14,9 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2.5" data-testid="nav-logo">
-          <div className="relative">
-            <div className="absolute inset-0 blur-md bg-phasor-green/60 rounded" />
-            <div className="relative w-7 h-7 rounded-md bg-black border border-phasor-green/50 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-phasor-green" strokeWidth={2.2} />
-            </div>
+          <div className="relative w-9 h-9 rounded-lg overflow-hidden border border-phasor-cyan/25 bg-black/60">
+            <div className="absolute inset-0 blur-lg bg-phasor-cyan/30" />
+            <img src={LOGO_URL} alt="Phasor logo" className="relative w-full h-full object-cover" />
           </div>
           <span className="font-display font-bold tracking-tight text-lg">Phasor</span>
           <span className="hidden sm:inline text-[10px] font-mono uppercase text-phasor-mute tracking-[0.2em] border border-white/10 rounded px-1.5 py-0.5 ml-1">
