@@ -1,0 +1,28 @@
+{
+  "summary": "First-finish testing of Phasor waitlist landing page. All 7 backend endpoints and all 17 frontend/UX checks passed. No console errors, no horizontal overflow at 1280 or 375.",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "passed": [
+    "GET /api/ returns {service:'Phasor API', status:'online'} 200",
+    "GET /api/waitlist/stats returns {total, displayed_count} with baseline 3127+total",
+    "POST /api/waitlist valid email -> 200 with id/email/position/created_at",
+    "POST /api/waitlist same email idempotent -> same id returned",
+    "POST /api/waitlist invalid email -> 422 validation error",
+    "GET /api/waitlist/admin without token -> 401 Unauthorized",
+    "GET /api/waitlist/admin?token=phasor-admin-dev -> 200 list of entries",
+    "Landing page loads with hero headline 'Real-Time Synthetic Media Defense'",
+    "hero-waveform R3F canvas renders",
+    "waitlist-form accepts email + shows Secured success state on valid submit",
+    "Invalid email submit does not permanently disable button",
+    "All 4 channel tabs (phone/zoom/chrome/email) switch and reveal corresponding mocks",
+    "All 3 demo cards (phone/zoom/chrome) render; play button click works",
+    "All 4 stat cards (latency, artifacts, fp, throughput) render",
+    "All 4 nav buttons (channels, demos, arch, cta) clickable",
+    "No horizontal overflow at 1280x800 and 375x800",
+    "Zero console errors after filtering benign WebGL warnings"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
