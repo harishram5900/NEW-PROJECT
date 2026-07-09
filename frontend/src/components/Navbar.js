@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_voice-guard-ai-3/artifacts/v7p21zyd_Gemini_Generated_Image_elo52gelo52gelo5.png";
 
@@ -34,10 +35,18 @@ export default function Navbar() {
         <button
           data-testid="nav-cta"
           onClick={() => scrollTo("waitlist")}
-          className="btn-primary rounded-full px-4 py-2 text-sm"
+          className="hidden sm:inline-flex btn-primary rounded-full px-4 py-2 text-sm items-center gap-2"
         >
           Join Waitlist
         </button>
+        <Link
+          to="/console"
+          data-testid="nav-launch-app"
+          className="rounded-full border border-phasor-cyan/40 bg-phasor-cyan/[0.08] hover:bg-phasor-cyan/[0.15] hover:border-phasor-cyan/60 transition-colors text-phasor-cyan text-sm px-4 py-2 inline-flex items-center gap-2 ml-2"
+          style={{ boxShadow: "0 0 24px -8px rgba(0,242,254,0.55)" }}
+        >
+          Launch Web App →
+        </Link>
       </div>
     </header>
   );

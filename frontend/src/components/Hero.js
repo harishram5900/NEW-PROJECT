@@ -374,6 +374,24 @@ export default function Hero() {
           Phasor scans active phone calls, video streams, extensions, and emails in real time to spot AI clone scams instantly. Protect your family.
         </p>
 
+        <div className="reveal mt-6 flex items-center justify-center gap-3 flex-wrap">
+          <a
+            href="/console"
+            data-testid="hero-launch-app"
+            className="group relative rounded-full border border-phasor-cyan/40 bg-phasor-cyan/[0.08] hover:bg-phasor-cyan/[0.14] transition-colors text-phasor-cyan text-sm px-5 py-2.5 inline-flex items-center gap-2"
+            style={{ boxShadow: "0 0 40px -8px rgba(0,242,254,0.55)" }}
+          >
+            <Sparkles className="w-4 h-4" />
+            Launch the full Web App
+            <span className="text-[10px] font-mono uppercase tracking-widest text-phasor-cyan/60 border border-phasor-cyan/30 rounded-full px-2 py-0.5 ml-1">
+              beta
+            </span>
+          </a>
+          <span className="text-xs font-mono text-phasor-mute">
+            connects with Google Meet · Zoom · Chrome · Email
+          </span>
+        </div>
+
         <div id="waitlist" className="reveal mt-10 max-w-xl mx-auto">
           {!result ? (
             <>
