@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -352,6 +353,21 @@ async def list_waitlist(token: Optional[str] = None, db: AsyncSession = Depends(
             )
         )
     return out
+
+
+@api_router.get("/download/{part}")
+async def download_source(part: str):
+    """Serve prebuilt source-code zips for user download. part in {frontend, backend}."""
+    if part not in {"frontend", "backend"}:
+        raise HTTPException(status_code=404, detail="not found")
+    zip_path = Path("/app") / f"phasor-{part}.zip"
+    if not zip_path.exists():
+        raise HTTPException(status_code=404, detail=f"{part} archive not found — ask the agent to regenerate")
+    return FileResponse(
+        path=str(zip_path),
+        media_type="application/zip",
+        filename=f"phasor-{part}.zip",
+    )
 
 
 app.include_router(api_router)
