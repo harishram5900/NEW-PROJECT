@@ -311,6 +311,8 @@ export default function Hero() {
         ref: incomingRef || undefined,
       });
       setResult(res.data);
+      // Notify any live subscribers (leaderboard) to refresh immediately
+      try { globalThis.dispatchEvent(new CustomEvent("phasor:waitlist-updated")); } catch {}
       if (res.data.already_joined) {
         toast.success(`Welcome back — you're #${res.data.position}${res.data.beta_access ? " · Beta unlocked" : ""}`);
       } else {

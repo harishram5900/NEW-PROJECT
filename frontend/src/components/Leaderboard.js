@@ -111,8 +111,18 @@ export default function Leaderboard() {
   useEffect(() => {
     setLoading(true);
     fetchData(window);
-    const t = setInterval(() => fetchData(window), 20000);
-    return () => clearInterval(t);
+    const interval = setInterval(() => fetchData(window), 6000);
+    // Refetch immediately when a signup happens in this tab
+    const onSignup = () => fetchData(window);
+    globalThis.addEventListener("phasor:waitlist-updated", onSignup);
+    // Refetch when tab regains focus (e.g. after opening ?ref link in new tab)
+    const onFocus = () => fetchData(window);
+    globalThis.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(interval);
+      globalThis.removeEventListener("phasor:waitlist-updated", onSignup);
+      globalThis.removeEventListener("focus", onFocus);
+    };
   }, [window]);
 
   const entries = data?.entries || [];
