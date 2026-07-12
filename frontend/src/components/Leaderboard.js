@@ -214,6 +214,7 @@ export default function Leaderboard() {
                 ? `updated ${new Date(data.updated_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
+                    second: "2-digit",
                   })}`
                 : "—"}
             </span>

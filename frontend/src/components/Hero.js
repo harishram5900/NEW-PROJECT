@@ -40,20 +40,17 @@ function SharePanel({ data, shareUrl, onReset }) {
   const [copied, setCopied] = useState("");
   const [boardRank, setBoardRank] = useState(null); // { rank, totalOnBoard }
 
-  // Look up if this user is on the public leaderboard (top 10)
+  // Look up if this user is on the public leaderboard (top 10) — precise match via referral_code
   useEffect(() => {
     let ignore = false;
     const check = async () => {
       try {
-        const res = await axios.get(`${API}/waitlist/leaderboard`, { params: { window: "all", limit: 10 } });
+        const res = await axios.get(`${API}/waitlist/rank`, {
+          params: { code: data.referral_code, window: "all", limit: 10 },
+        });
         if (ignore) return;
-        const entries = res.data?.entries || [];
-        // The leaderboard exposes masked handles, so match by referrals+beta as a heuristic OR reuse mask
-        // We'll match by first-2 chars of email prefix + first char of domain (which is exactly the mask)
-        const mask = maskEmail(data.email);
-        const idx = entries.findIndex((e) => e.handle === mask && e.referrals === data.referral_count);
-        if (idx >= 0) {
-          setBoardRank({ rank: idx + 1, totalOnBoard: entries.length });
+        if (res.data?.on_leaderboard) {
+          setBoardRank({ rank: res.data.rank, totalOnBoard: res.data.total_on_board });
         } else {
           setBoardRank(null);
         }
@@ -63,7 +60,7 @@ function SharePanel({ data, shareUrl, onReset }) {
     };
     check();
     return () => { ignore = true; };
-  }, [data.email, data.referral_count]);
+  }, [data.referral_code, data.referral_count]);
 
   const copy = async (val, key) => {
     const done = () => {

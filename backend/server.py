@@ -259,6 +259,34 @@ async def lookup(code: str, db: AsyncSession = Depends(get_db)):
     )
 
 
+@api_router.get("/waitlist/rank")
+async def leaderboard_rank(code: str, window: str = "all", limit: int = 10, db: AsyncSession = Depends(get_db)):
+    """Return the user's rank on the public leaderboard for the given window. Returns null rank if not on the board."""
+    code_norm = code.strip().upper()
+    referrer = WaitlistEntry.__table__.alias("referrer")
+    referred = WaitlistEntry.__table__.alias("referred")
+    join_cond = referred.c.referred_by_code == referrer.c.referral_code
+    if window == "7d":
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        join_cond = and_(join_cond, referred.c.created_at >= cutoff)
+    stmt = (
+        select(referrer.c.referral_code, func.count(referred.c.id).label("cnt"))
+        .select_from(referrer.outerjoin(referred, join_cond))
+        .group_by(referrer.c.id, referrer.c.referral_code)
+        .having(func.count(referred.c.id) > 0)
+        .order_by(func.count(referred.c.id).desc(), referrer.c.email.asc())
+        .limit(max(1, min(50, limit)))
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    rank = None
+    for i, r in enumerate(rows):
+        if r.referral_code == code_norm:
+            rank = i + 1
+            break
+    return {"code": code_norm, "window": window, "rank": rank, "on_leaderboard": rank is not None, "total_on_board": len(rows)}
+
+
 @api_router.get("/waitlist/leaderboard", response_model=LeaderboardResponse)
 async def leaderboard(window: str = "7d", limit: int = 10, db: AsyncSession = Depends(get_db)):
     """Top referrers. window=7d counts only referred users created within last 7 days; window=all is all-time."""
